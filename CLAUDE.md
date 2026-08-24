@@ -23,9 +23,18 @@
 - **已儲存的提示詞**：`localStorage`（key: `vidPromptSavedItems`），每筆 `{id, target, name, savedAt, fieldValues, assembledPrompt, aiOutput}`。載入時會同時還原共用欄位＋切換回對應的目標模型分頁。
 - `manual.html` 操作手冊：四目標模型分頁介紹／操作步驟／「組成」與「AI優化」差異說明／已儲存的提示詞／AI 串接說明／隱私說明／使用警語／創作者資料／授權限制。**創作者經歷內容與 `ai-image-prompt-studio/manual.html`、`icap-generator/manual.html`、`sbir-generator/manual.html`、`phoenix-loan-generator/manual.html`、`Prompt/manual.html`、`ai-prompt-generator/manual.html` 為同一份，更新其中一邊時同步其餘各邊。**
 
-## 不套用序號授權（與姊妹專案的差異點）
+## 序號授權（鎖定整個工具，12 個月）
 
-**這是與 `ai-image-prompt-studio`／`ai-prompt-generator`／`product-title-generator`／`ai-music-prompt-studio` 最大的差異**：使用者明確要求本工具**不套用序號授權**，直接公開使用（比照 `coffee-ig-planner` 的模式），沒有 `#licenseGate`、沒有 `Code.gs`、沒有綁定 Google Sheet 驗證後端。頁面裡完全沒有序號相關的 HTML/CSS/JS。日後若使用者要求補上序號授權，可直接參照 `ai-image-prompt-studio/index.html` 的 `#licenseGate` 區塊＋對應 IIFE 搬過來，`Code.gs`／`SETUP-授權伺服器設定.md` 也可整份複製調整文字。
+**2026-08-24 追加**：原始設計是「不套用序號授權，直接公開」（比照 `coffee-ig-planner`），使用者後續改變主意，改用 `/google-apps-script` → `member-license-gate` skill 補上與 `ai-image-prompt-studio` 同一套「鎖整個工具」骨架，而不是該 skill 資產檔 `assets/license-frontend.html` 預設的「只鎖單一功能的 banner」變體——理由是使用者已明確選擇「鎖整個工具」，`ai-image-prompt-studio` 的全螢幕遮罩版本才是這個範疇下已驗證過的實作，直接搬過來比從 banner 骨架改寫更可靠。
+
+`#licenseGate` 全螢幕遮罩預設鎖定，驗證通過才加上 `.hidden`；載入時一律對後端即時重驗（不只信任 localStorage 快取），背景每 20 分鐘重驗一次，過期會自動重新鎖住整個頁面。`localStorage` key：`vidPromptSerial`。與 `ai-image-prompt-studio` 的 `#licenseGate` IIFE **逐字相同的驗證邏輯**（`checkLicense`／`unlock`／`lock`／`updateBadge`），只換了 `STORAGE_KEY`；常駐徽章 `#licenseBadge` 在 topbar（🔑 剩餘 N 天，≤7天變色警示）。
+
+- `Code.gs` — 部署到 Google Sheet 的 Apps Script 原始碼：`doPost` 只做序號驗證＋首次自動啟用，`doGet` 供部署後測試。`VALID_AMOUNT = 12`（月）。這不是這個資料夾裡的檔案在跑，是使用者手動複製貼到 Google Sheet 的「擴充功能 → Apps Script」編輯器裡部署成 Web App，取得網址後回填到 `index.html` 的 `LICENSE_CHECK_URL`。部署步驟見 `SETUP-授權伺服器設定.md`。
+- **這支後端只做序號驗證，不代理任何付費 API**（本工具的 LLM 串接維持 BYOK，前端直連使用者自己的服務商 API，跟序號系統無關——使用者明確選擇不加代理模式），也**不處理跑馬燈**（跑馬燈是完全獨立的既有系統）。
+- **綁定的 Google Sheet 是使用者指定的既有表**：<https://docs.google.com/spreadsheets/d/1cpJRUSH_-O23br-1gnHTeLeJ6xqGkPmcgCb4GvBGLYQ/edit>。表頭順序為「任務／優先順序／負責人／序號／狀態／開始日期／結束日期／交件／附註」（含一筆測試列 `mark0131`，與其他姊妹專案共用同一組測試序號慣例，但這是不同的 Sheet 檔案 ID，並非同一份試算表）。`Code.gs` 依表頭文字比對「序號」「開始日期」「結束日期」三個欄位，其餘欄位不影響驗證邏輯。
+- **截至本次修改，`LICENSE_CHECK_URL` 仍是空字串**——部署 Apps Script 這一步需要使用者親自完成（涉及 Google OAuth 同意畫面，無法由 Claude 代勞，見 `google-apps-script` skill）。使用者完成部署、拿到 `.../exec` 網址後，需回填 `index.html` 的 `LICENSE_CHECK_URL` 常數，並重新打包 `VideoPromptStudio.exe`（見下方指令）、重新 commit/push（若已部署 GitHub Pages，push 後會自動重新部署最新版）。**在此之前，這個工具的線上版與 exe 版都會卡在鎖定畫面、無法使用**——這是 fail-closed 的預期行為，不是 bug。
+
+因為序號閘門現在鎖住整個工具，原本「免費公開使用」的措辭（首頁 warn-box、`manual.html`、`README.md`、`launcher.py` 啟動訊息）已全部改回姊妹專案慣用的「僅供教學、課程及個人使用，禁止未經授權公開發布、販售或商業化使用」。
 
 ## 頂部共用跑馬燈
 
@@ -83,7 +92,7 @@ python -m PyInstaller --onefile --console --name VideoPromptStudio `
 
 - 用 `python -m http.server 8798` 起本機伺服器，Playwright 實測：套用範例（賽博龐克城市場景）正確帶入所有欄位；切換 4 個分頁分別按「組成提示詞」，確認四種格式（Sora 中文標籤條列／Veo 官方 Subject-Context-Camera-Style-Ambiance 結構／Runway 方括號鏡頭前綴＋逗號關鍵詞／Kling 中文敘述句）皆如預期產出、彼此明顯不同；重新整理頁面後欄位與分頁狀態正確從 localStorage 還原；「儲存」寫入已儲存清單成功（測試後已 `localStorage.clear()` 清除測試資料）；375px 手機寬度下無橫向捲動。
 - **本次未做**：「送給 AI 優化」的實際 LLM 呼叫（需要真實 API 金鑰，未測試）；exe 已用 PyInstaller 建置且 `python launcher.py` 測試過，但尚未實機雙擊 `.exe` 驗證（Smart App Control 延遲封鎖，見上）。
-- **2026-08-24 後續**：使用者確認要公開後，已推送公開 GitHub repo 並部署 GitHub Pages（見下方「GitHub 與線上部署」）。
+- **2026-08-24 後續**：使用者確認要公開後，已推送公開 GitHub repo 並部署 GitHub Pages（見下方「GitHub 與線上部署」）；後續使用者又要求補上序號授權（見上方「序號授權」一節）——已用 Playwright 實測 `LICENSE_CHECK_URL` 為空字串時，閘門預設鎖定、輸入測試序號 `mark0131` 後正確 fail-closed 顯示「尚未設定授權伺服器網址，請聯繫工具提供者」，符合預期（尚未部署後端前就是要卡在鎖定畫面）；`Code.gs`／`SETUP-授權伺服器設定.md` 已準備好交給使用者部署，部署完成、拿到網址後還需回填 `LICENSE_CHECK_URL`＋重建 exe＋重新 commit/push，屬於下一步驟。
 
 ## GitHub 與線上部署
 

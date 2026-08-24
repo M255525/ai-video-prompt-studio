@@ -3,7 +3,7 @@
 
 打包後的 exe 內含 index.html / manual.html。
 執行時在本機 127.0.0.1:8798 啟動靜態伺服器並開啟預設瀏覽器。
-固定使用 8798 埠，讓瀏覽器 localStorage（已儲存的提示詞、API 設定）跨次啟動保留。
+固定使用 8798 埠，讓瀏覽器 localStorage（已儲存的提示詞、API 設定、序號）跨次啟動保留。
 
 重建指令見專案 CLAUDE.md。
 """
@@ -58,7 +58,8 @@ def main() -> None:
     print("  ※ 使用期間請保持此視窗開啟；")
     print("    關閉此視窗即結束程式（已填資料存於瀏覽器，不會遺失）。")
     print()
-    print("  本工具免費公開使用，歡迎自由使用。  製作：Mark Tsai")
+    print("  本工具僅供教學、課程及個人使用，")
+    print("  禁止未經授權公開發布、販售或商業化使用。  製作：Mark Tsai")
     print()
 
     webbrowser.open(url)
