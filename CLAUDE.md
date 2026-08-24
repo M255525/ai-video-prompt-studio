@@ -73,7 +73,7 @@ python -m PyInstaller --onefile --console --name VideoPromptStudio `
   launcher.py
 ```
 
-尚未建置（本次規劃/開發階段未執行 PyInstaller 打包，僅備妥 `launcher.py`）。exe 未簽章，首次執行可能遇 SmartScreen 或 Windows Smart App Control 警告（見全域記憶 `windows-smart-app-control-dll-blocks`）；測試 exe 時注意 PyInstaller onefile 會有父子兩個程序，需要 `taskkill //IM VideoPromptStudio.exe //F` 才殺得乾淨。
+已建置一次（2026-08-24）。`python launcher.py` 直接測試過 `/index.html`／`/manual.html` 皆回應 200；exe 本身因 Windows Smart App Control 對新編譯未簽章二進位檔的已知延遲封鎖（見全域記憶 `windows-smart-app-control-dll-blocks`），尚未實機雙擊驗證。exe 未簽章，首次執行可能遇 SmartScreen 或 Smart App Control 警告；若被硬擋，可改用已簽章的系統 `python.exe` 執行 `launcher.py` 繞過（比照 `Prompt_Eng/啟動提示詞控制台.bat` 的做法）。測試 exe 時注意 PyInstaller onefile 會有父子兩個程序，需要 `taskkill //IM VideoPromptStudio.exe //F` 才殺得乾淨（**不要用不帶 `//IM <名稱>` 的 `taskkill //IM python.exe //F`，會誤殺系統上所有 python.exe 行程**）。
 
 ## 響應式設計
 
@@ -82,7 +82,7 @@ python -m PyInstaller --onefile --console --name VideoPromptStudio `
 ## 已驗證項目（本次開發階段）
 
 - 用 `python -m http.server 8798` 起本機伺服器，Playwright 實測：套用範例（賽博龐克城市場景）正確帶入所有欄位；切換 4 個分頁分別按「組成提示詞」，確認四種格式（Sora 中文標籤條列／Veo 官方 Subject-Context-Camera-Style-Ambiance 結構／Runway 方括號鏡頭前綴＋逗號關鍵詞／Kling 中文敘述句）皆如預期產出、彼此明顯不同；重新整理頁面後欄位與分頁狀態正確從 localStorage 還原；「儲存」寫入已儲存清單成功（測試後已 `localStorage.clear()` 清除測試資料）；375px 手機寬度下無橫向捲動。
-- **本次未做**：「送給 AI 優化」的實際 LLM 呼叫（需要真實 API 金鑰，未測試）；exe 尚未用 PyInstaller 建置與雙擊驗證；尚未 commit／建立公開 GitHub repo／部署 GitHub Pages（需使用者另外確認，屬於對外可見動作）；根目錄 `CLAUDE.md` 專案清單與 `專案目錄.docx` 尚待補列。
+- **本次未做**：「送給 AI 優化」的實際 LLM 呼叫（需要真實 API 金鑰，未測試）；exe 已用 PyInstaller 建置且 `python launcher.py` 測試過，但尚未實機雙擊 `.exe` 驗證（Smart App Control 延遲封鎖，見上）；尚未建立公開 GitHub repo／部署 GitHub Pages（已本機 commit，需使用者另外確認是否公開，屬於對外可見動作）。
 
 ## 指令
 
