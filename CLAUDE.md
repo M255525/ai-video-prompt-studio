@@ -82,7 +82,12 @@ python -m PyInstaller --onefile --console --name VideoPromptStudio `
 ## 已驗證項目（本次開發階段）
 
 - 用 `python -m http.server 8798` 起本機伺服器，Playwright 實測：套用範例（賽博龐克城市場景）正確帶入所有欄位；切換 4 個分頁分別按「組成提示詞」，確認四種格式（Sora 中文標籤條列／Veo 官方 Subject-Context-Camera-Style-Ambiance 結構／Runway 方括號鏡頭前綴＋逗號關鍵詞／Kling 中文敘述句）皆如預期產出、彼此明顯不同；重新整理頁面後欄位與分頁狀態正確從 localStorage 還原；「儲存」寫入已儲存清單成功（測試後已 `localStorage.clear()` 清除測試資料）；375px 手機寬度下無橫向捲動。
-- **本次未做**：「送給 AI 優化」的實際 LLM 呼叫（需要真實 API 金鑰，未測試）；exe 已用 PyInstaller 建置且 `python launcher.py` 測試過，但尚未實機雙擊 `.exe` 驗證（Smart App Control 延遲封鎖，見上）；尚未建立公開 GitHub repo／部署 GitHub Pages（已本機 commit，需使用者另外確認是否公開，屬於對外可見動作）。
+- **本次未做**：「送給 AI 優化」的實際 LLM 呼叫（需要真實 API 金鑰，未測試）；exe 已用 PyInstaller 建置且 `python launcher.py` 測試過，但尚未實機雙擊 `.exe` 驗證（Smart App Control 延遲封鎖，見上）。
+- **2026-08-24 後續**：使用者確認要公開後，已推送公開 GitHub repo 並部署 GitHub Pages（見下方「GitHub 與線上部署」）。
+
+## GitHub 與線上部署
+
+公開 repo：<https://github.com/M255525/ai-video-prompt-studio>（使用者已明確要求推公開，比照 `ai-image-prompt-studio`／`coffee-ig-planner` 等同分類姊妹專案）。已啟用 GitHub Pages，**建置方式為 Actions workflow（`build_type=workflow`），不是 legacy branch-source**（見全域記憶 `workspace-git-repos` 2026-08-12 的踩坑：這台帳號的 legacy Jekyll builder 已淘汰，純靜態 HTML 用 branch-source 會立即建置失敗）——`.github/workflows/deploy-pages.yml` 標準三步驟（`actions/configure-pages` → `actions/upload-pages-artifact`，`path: '.'` → `actions/deploy-pages`），觸發分支 `main`（這個新 repo 預設分支是 `main`，不是舊專案慣用的 `master`，工作流程檔案的 `on.push.branches` 要對應改成 `["main"]`）。線上網址：<https://m255525.github.io/ai-video-prompt-studio/>。首次 push 後用 `gh run list --workflow=deploy-pages.yml` 確認跑成功（約 16 秒），`gh api repos/M255525/ai-video-prompt-studio/pages --jq '.html_url'` 與直接 curl 該網址皆已驗證回應 200（2026-08-24）。`README.md` 是給 GitHub repo 首頁看的說明文件，與 `CLAUDE.md` 分工不同，兩者都要在功能變動時同步更新。
 
 ## 指令
 
