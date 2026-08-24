@@ -1,0 +1,16 @@
+{
+  "name": "AI 短影片提示詞產生器",
+  "short_name": "短影片提示詞",
+  "description": "短影片生成提示詞優化工具（Sora／Veo／Runway／Kling）",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#150e08",
+  "theme_color": "#f97316",
+  "lang": "zh-TW",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
