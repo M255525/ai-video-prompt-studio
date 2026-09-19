@@ -6,7 +6,9 @@
 
 ## 架構
 
-單一 `index.html`：內嵌 CSS/JS、無外部資源、無建置步驟。視覺主題是深色「片場／膠捲」風格（`--bg #150e08` + 圓點網格背景 + 橙色 `--accent #f97316`），與姊妹專案（`ai-image-prompt-studio` 洋紅 `#ec4899`、`ai-prompt-generator` 天藍 `#38bdf8`、`product-title-generator` 藍 `#3b82f6`、`ai-music-prompt-studio` 紫 `#a855f7`）刻意做出色彩區隔，方便一眼分辨是哪個工具。
+單一 `index.html`：內嵌 CSS/JS、無外部資源、無建置步驟。視覺主題預設深色「片場／膠捲」風格（`--bg #150e08` + 圓點網格背景 + 橙色 `--accent #f97316`），與姊妹專案（`ai-image-prompt-studio` 洋紅 `#ec4899`、`ai-prompt-generator` 天藍 `#38bdf8`、`product-title-generator` 藍 `#3b82f6`、`ai-music-prompt-studio` 紫 `#a855f7`）刻意做出色彩區隔，方便一眼分辨是哪個工具。
+
+**2026-09-19 追加淺色主題切換**：topbar 新增 🌙／☀️ 按鈕（`#themeToggleBtn`），可在深色與淺色主題間切換，偏好存 `localStorage`（key: `vidPromptTheme`，值 `dark`/`light`，預設 `dark`）。做法是 `:root[data-theme="light"]` 覆寫整組 CSS 變數（`--bg`/`--panel`/`--text`/`--accent`/`--teal`/`--gold`/`--red` 等），其餘所有樣式規則都是透過這些變數間接套用，因此不需逐條規則改寫；淺色主題把 `--accent`/`--teal`/`--gold`/`--red` 都改成更深的飽和色（例如 `--accent:#d2570f` 取代 `#f97316`），因為這些顏色同時被當作「淺底文字/邊框」與「按鈕底色」使用，加深後才能在白底面板上維持可讀對比，同時按鈕上疊的深色文字（如 `#2a1204`）依然清楚。唯二不是純變數覆寫的例外：body 的圓點網格背景圖與 `.ai-report .warn` 的寫死黃色 `#facc15`，改用 `:root[data-theme="light"] body`／`:root[data-theme="light"] .ai-report .warn` 個別覆寫。`<head>` 內有一段極短的同步 inline script，在 CSS 套用前就先讀 `localStorage` 設定 `data-theme`，避免重新整理時先閃深色再跳淺色。`#licenseGate` 的全螢幕遮罩背景刻意維持固定深色（`rgba(10,7,4,.95)`），不隨主題改變——比照一般 modal 遮罩無論主題都用深色scrim 的慣例，遮罩內的 `.gate-box` 本身仍會依主題變色。
 
 - **共用欄位 + 多目標模型分頁**（比照 `ai-image-prompt-studio` 的結構）：單一組共用欄位 `state.fields`（主題／場景／秒數／鏡頭運動／影片風格／光線氛圍／情緒氛圍／長寬比／音效配樂提示／不希望出現的元素／既有腳本補充）搭配四個只改變「組裝格式」的目標模型分頁（`TARGETS`：`sora`/`veo`/`runway`/`kling`）。使用者填一次欄位，四個分頁共用，只有「組成提示詞」「送給 AI 優化」的輸出格式規則依分頁不同。
 - 鏡頭運動／影片風格／光線氛圍／情緒氛圍的選項陣列（`CAMERA_OPTIONS`／`STYLE_OPTIONS`／`LIGHTING_OPTIONS`／`MOOD_OPTIONS`）每個選項都同時定義中文標籤（`zh`）與英文提示詞片語（`en`）；長寬比（`RATIO_OPTIONS`）與秒數（`DURATION_OPTIONS`）只有 `zh`（不需要英文組裝片語，秒數直接用數字）。新增選項時注意補齊 `zh`/`en`。

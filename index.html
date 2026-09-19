@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="短影片提示詞產生器">
+<script>(function(){try{if(localStorage.getItem('vidPromptTheme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <style>
   :root{
     --bg:#150e08;
@@ -34,6 +35,25 @@
     --font-sans:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
     --radius:10px;
   }
+  :root[data-theme="light"]{
+    --bg:#fdf8f2;
+    --bg-alt:#f6ead9;
+    --panel:#ffffff;
+    --panel-raised:#fff1de;
+    --line:#e8d5bb;
+    --line-soft:#f0e2cd;
+    --text:#2a1c10;
+    --text-dim:#6b5138;
+    --text-faint:#9c8267;
+    --accent:#d2570f;
+    --accent-soft:rgba(210,87,15,0.12);
+    --accent-glow:rgba(210,87,15,0.35);
+    --teal:#0f766e;
+    --teal-soft:rgba(15,118,110,0.12);
+    --gold:#92400e;
+    --gold-soft:rgba(146,64,14,0.12);
+    --red:#b91c1c;
+  }
   *{box-sizing:border-box;}
   html{-webkit-text-size-adjust:100%;}
   body{
@@ -41,7 +61,12 @@
     background-image:
       radial-gradient(circle at 1px 1px, rgba(249,115,22,0.08) 1px, transparent 0);
     background-size:26px 26px;
+    transition:background-color .2s,color .2s;
   }
+  :root[data-theme="light"] body{
+    background-image:radial-gradient(circle at 1px 1px, rgba(210,87,15,0.12) 1px, transparent 0);
+  }
+  :root[data-theme="light"] .ai-report .warn{color:#92400e;}
   a{color:var(--accent);}
   ::selection{background:var(--accent);color:#2a1204;}
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
@@ -227,6 +252,7 @@
   <div class="brand"><span class="dot"></span><strong>AI 短影片提示詞產生器</strong></div>
   <div style="display:flex;align-items:center;gap:10px;">
     <span id="licenseBadge" class="license-badge" style="display:none;"></span>
+    <button type="button" id="themeToggleBtn" class="btn ghost" style="padding:7px 12px;" title="切換淺色／深色主題" aria-label="切換淺色／深色主題">🌙</button>
     <nav><a href="manual.html">操作手冊</a></nav>
   </div>
 </div>
@@ -377,6 +403,41 @@
 <div class="toast" id="toast" role="status"></div>
 
 <script>
+/* ================= 淺色／深色主題切換（獨立運作，跟下方主程式邏輯無關；head 內已有一段同步預先套用避免閃爍） ================= */
+(function () {
+  'use strict';
+  var STORAGE_KEY = 'vidPromptTheme';
+  var BG_COLORS = { dark: '#150e08', light: '#fdf8f2' };
+  var btn = document.getElementById('themeToggleBtn');
+  var metaTheme = document.querySelector('meta[name="theme-color"]');
+
+  function loadTheme() {
+    try { return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark'; } catch (e) { return 'dark'; }
+  }
+  function saveTheme(theme) {
+    try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) {}
+  }
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (btn) {
+      btn.textContent = theme === 'light' ? '☀️' : '🌙';
+      btn.title = theme === 'light' ? '切換為深色主題' : '切換為淺色主題';
+    }
+    if (metaTheme) metaTheme.setAttribute('content', BG_COLORS[theme]);
+  }
+
+  var current = loadTheme();
+  applyTheme(current);
+
+  if (btn) {
+    btn.addEventListener('click', function () {
+      current = current === 'light' ? 'dark' : 'light';
+      saveTheme(current);
+      applyTheme(current);
+    });
+  }
+})();
+
 /* ================= 頂部跑馬燈（獨立運作，跟下方主程式邏輯無關；共用工作區既有的公告 Google Sheet） ================= */
 (function () {
   'use strict';
