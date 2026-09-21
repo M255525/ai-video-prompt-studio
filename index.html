@@ -168,6 +168,12 @@
   .field .field-hint{font-size:12px;color:var(--text-faint);margin:4px 0 0;}
   .field-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
 
+  .toggle-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--text-dim);cursor:pointer;user-select:none;}
+  .toggle-row input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex:none;}
+  .decompose-box{margin-top:10px;padding:14px;background:var(--panel-raised);border:1px solid var(--line);border-radius:var(--radius);}
+  .decompose-result{margin-top:10px;font-size:12.5px;line-height:1.6;color:var(--text-dim);}
+  .decompose-result strong{color:var(--text);}
+
   .output-box{
     background:var(--bg-alt);border:1px solid var(--line);border-radius:8px;padding:14px;
     white-space:pre-wrap;font-family:var(--font-mono);font-size:13px;color:var(--text);min-height:60px;line-height:1.7;
@@ -286,6 +292,18 @@
     <div class="field">
       <label for="f_scene">場景／地點（建議填寫）</label>
       <textarea id="f_scene" placeholder="例：木質桌面上，旁邊散落幾片乾燥花瓣"></textarea>
+      <label class="toggle-row" for="f_decompose">
+        <input type="checkbox" id="f_decompose">
+        🧩 主題／場景拆解模式（先把畫面拆解成幾個次要主題，分別發展細節內容，再分別整合回「主題」與「場景」兩個欄位）
+      </label>
+      <div class="decompose-box" id="decomposePanel" hidden>
+        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定，請 AI 依序完成：① 把主題與場景拆解成幾個次要主題 → ② 分別發展每個次要主題更豐富的衍生內容 → ③ 分別整合成更完整的「主題／主體動作」與「場景／地點」文字，並直接套用到上面兩個欄位。套用後，「🔧 組成提示詞」與「🚀 送給 AI 優化」會自動把這兩段更豐富的內容，跟秒數／鏡頭運動／風格／光線／情緒／長寬比／音效配樂／不希望出現的元素等設定組合起來，AI 優化時也會完整保留這些設定，不會漏掉。</p>
+        <div class="output-actions">
+          <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解並發展主題／場景</button>
+        </div>
+        <div id="decomposeReport" class="ai-report" aria-live="polite"></div>
+        <div class="decompose-result" id="decomposeResult" hidden></div>
+      </div>
     </div>
 
     <div class="field-grid">
@@ -334,6 +352,12 @@
       <label for="f_existingprompt">既有腳本／提示詞補充（選填）</label>
       <textarea id="f_existingprompt" placeholder="貼上你已經在使用的影片生成提示詞或腳本片段，AI 優化時會以此為基礎進行修改與補充，而不是從主題重新生成一份全新提示詞"></textarea>
       <p class="field-hint">留空則以上方「主題」與「場景」等設定為主，產生全新的提示詞；填寫後，AI 會盡量保留這段既有內容的精神，只依你的補充調整方向與其他欄位設定進行修改。</p>
+    </div>
+
+    <div class="field">
+      <label for="f_scenecount">連續場景數</label>
+      <select id="f_scenecount"></select>
+      <p class="field-hint">選 2 個以上時，「送給 AI 優化」會一次產生 3 個不同的創意方案，每個方案各自包含這麼多個連貫場景——同一方案內的場景會維持相同的主體、場景、風格與氛圍，可直接剪接銜接成一支連續短片；方案之間則呈現不同的創意角度供你比較選擇。</p>
     </div>
 
     <details class="api-settings">
@@ -772,6 +796,13 @@
     {v:'15', zh:'15 秒'},
     {v:'20', zh:'20 秒'}
   ];
+  var SCENE_COUNT_OPTIONS = [
+    {v:'1', zh:'1（單一場景，預設）'},
+    {v:'2', zh:'2 個連續場景'},
+    {v:'3', zh:'3 個連續場景'},
+    {v:'4', zh:'4 個連續場景'},
+    {v:'5', zh:'5 個連續場景'}
+  ];
 
   function optFind(list, val){ return list.find(function(o){ return o.v === val; }); }
   function optZh(list, val){ var o = optFind(list, val); return o ? o.zh : ''; }
@@ -815,7 +846,7 @@
   /* ---------- 狀態：共用欄位（單一物件，非分頁各自獨立）＋各分頁的組成結果／AI 結果 ---------- */
   var STATE_KEY = 'vidPromptState';
   var state = loadState();
-  function defaultFields(){ return {topic:'', scene:'', duration:'', cameraMovement:'', style:'', lighting:'', mood:'', ratio:'', audioNote:'', negative:'', existingPrompt:''}; }
+  function defaultFields(){ return {topic:'', scene:'', duration:'', cameraMovement:'', style:'', lighting:'', mood:'', ratio:'', audioNote:'', negative:'', existingPrompt:'', decompose:false, sceneCount:'1'}; }
   function defaultState(){
     var assembled = {}, aiOut = {};
     TARGET_ORDER.forEach(function(t){ assembled[t] = ''; aiOut[t] = ''; });
@@ -886,6 +917,9 @@
     $('f_audio').value = state.fields.audioNote || '';
     $('f_negative').value = state.fields.negative || '';
     $('f_existingprompt').value = state.fields.existingPrompt || '';
+    $('f_scenecount').value = state.fields.sceneCount || '1';
+    $('f_decompose').checked = !!state.fields.decompose;
+    $('decomposePanel').hidden = !state.fields.decompose;
   }
 
   function initFieldInputs(){
@@ -895,6 +929,9 @@
     fillSelect($('f_lighting'), LIGHTING_OPTIONS, '不指定');
     fillSelect($('f_mood'), MOOD_OPTIONS, '不指定');
     fillSelect($('f_ratio'), RATIO_OPTIONS, '不指定');
+    $('f_scenecount').innerHTML = SCENE_COUNT_OPTIONS.map(function(o){
+      return '<option value="' + o.v + '">' + escapeHtml(o.zh) + '</option>';
+    }).join('');
 
     $('f_topic').addEventListener('input', function(){ state.fields.topic = this.value; persistState(); });
     $('f_scene').addEventListener('input', function(){ state.fields.scene = this.value; persistState(); });
@@ -907,12 +944,140 @@
     $('f_audio').addEventListener('input', function(){ state.fields.audioNote = this.value; persistState(); });
     $('f_negative').addEventListener('input', function(){ state.fields.negative = this.value; persistState(); });
     $('f_existingprompt').addEventListener('input', function(){ state.fields.existingPrompt = this.value; persistState(); });
+    $('f_scenecount').addEventListener('change', function(){ state.fields.sceneCount = this.value; persistState(); });
+    $('f_decompose').addEventListener('change', function(){
+      state.fields.decompose = this.checked;
+      $('decomposePanel').hidden = !this.checked;
+      persistState();
+    });
   }
 
   function fieldsHasContent(){
     var f = state.fields;
     return !!(f.topic || f.scene || f.duration || f.cameraMovement || f.style || f.lighting || f.mood || f.ratio || f.audioNote || f.negative || f.existingPrompt);
   }
+
+  /* ---------- 主題／場景拆解模式：把主題與場景拆解成幾個次要主題→分別發展出更豐富的衍生內容→分別整合回
+     「主題／主體動作」與「場景／地點」兩個欄位（比照 ai-image-prompt-studio 已驗證過的「拆解→發展→整合」
+     設計搬過來；差異在本工具是兩個獨立欄位，整合結果要拆成兩段各自寫回，不是單一欄位）。這是「🔧 組成提示詞」
+     與「🚀 送給 AI 優化」共用的**前置步驟**（不直接產生最終提示詞）：套用後，「組成提示詞」會自動把這兩段更豐富
+     的內容跟秒數／鏡頭運動／風格／光線／情緒／長寬比／音效配樂／不希望出現的元素組合起來，「送給 AI 優化」
+     再把組合結果整段拿去翻譯潤飾。單一 LLM 呼叫、要求固定格式輸出，前端只負責解析與顯示。 ---------- */
+  var DECOMPOSE_BREAKDOWN_MARKER = '【次要主題拆解與發展】';
+  var DECOMPOSE_TOPIC_MARKER = '【整合後的主題／主體動作】';
+  var DECOMPOSE_SCENE_MARKER = '【整合後的場景／地點】';
+  /* 實測發現 LLM 不一定會逐字重現標記（常見變形：括號內加空格、用半形 [] 取代全形【】、用 markdown
+     粗體／標題符號包住），改用容錯 regex（括號可有可無，可加空格與星號、井字號、冒號等修飾符號）辨識分界點。 */
+  var DECOMPOSE_TOPIC_RE = /[*#\s]*[【\[]?\s*整合後的主題(?:／主體動作)?\s*[】\]]?[*#\s:：]*\n?/;
+  var DECOMPOSE_SCENE_RE = /[*#\s]*[【\[]?\s*整合後的場景(?:／地點)?\s*[】\]]?[*#\s:：]*\n?/;
+  var DECOMPOSE_BREAKDOWN_RE = /[*#\s]*[【\[]?\s*次要主題拆解(?:與發展)?\s*[】\]]?[*#\s:：]*\n?/;
+
+  function decomposePrompt(topic, scene){
+    var lines = [];
+    lines.push('你是一位短影片提示詞企劃助手。請針對以下主題與場景設定，依序完成「拆解→發展→整合」三個步驟：');
+    lines.push('');
+    lines.push('原始主題／主體動作：' + topic);
+    lines.push('原始場景／地點：' + (scene || '（使用者尚未填寫，請你依主題自行設計一個合適的場景）'));
+    lines.push('');
+    lines.push('步驟一（拆解）：把這個畫面拆解成 3～5 個「次要主題」——構成這支短影片畫面的重要子元素或面向（例如主體的動作細節、場景背景與環境、氛圍情緒、鏡頭焦點、道具或人物互動等，實際主題依內容決定，不要硬套固定分類）。');
+    lines.push('步驟二（發展）：針對每一個次要主題，各自發展出更豐富具體、更有畫面感的衍生內容（2～3 句話，盡量補上具體的視覺意象、動作細節、材質或情境描述，不要只是重複原句）。');
+    lines.push('步驟三（整合）：把步驟二所有次要主題發展出的內容，分別整合成兩段更完整的繁體中文文字——一段是更豐富的「主題／主體動作」描述（3～6 句，聚焦主體本身的動作與細節，語意連貫、不要條列），另一段是更豐富的「場景／地點」描述（2～4 句，聚焦環境背景與空間氛圍，語意連貫、不要條列），兩段合起來可以直接取代原本的主題與場景欄位，作為後續組成提示詞與 AI 優化的基礎（秒數／鏡頭運動／影片風格／光線氛圍／情緒氛圍／長寬比／音效配樂／不希望出現的元素等設定不在這裡處理，那些會在後續步驟另外加上，這裡只專注在主體與場景本身）。');
+    lines.push('');
+    lines.push('請務必用以下格式輸出，不要有其他多餘文字或說明：');
+    lines.push(DECOMPOSE_BREAKDOWN_MARKER);
+    lines.push('1. 主題名稱：發展內容');
+    lines.push('2. 主題名稱：發展內容');
+    lines.push('（實際拆解出幾個主題就列幾點，不限於兩點）');
+    lines.push(DECOMPOSE_TOPIC_MARKER);
+    lines.push('整合後的主題／主體動作文字');
+    lines.push(DECOMPOSE_SCENE_MARKER);
+    lines.push('整合後的場景／地點文字');
+    return lines.join('\n');
+  }
+
+  function parseDecomposeResult(text){
+    // 保底原則：找不到分界標記時，寧可把整段回應原文當成主題整合結果，也不要顯示空白或直接判定失敗。
+    var tm = DECOMPOSE_TOPIC_RE.exec(text);
+    if(!tm) return {breakdown: '', topic: text.trim(), scene: ''};
+    var breakdownRaw = text.slice(0, tm.index);
+    var bm = DECOMPOSE_BREAKDOWN_RE.exec(breakdownRaw);
+    var breakdown = (bm ? breakdownRaw.slice(bm.index + bm[0].length) : breakdownRaw).trim();
+    var afterTopic = text.slice(tm.index + tm[0].length);
+    var sm = DECOMPOSE_SCENE_RE.exec(afterTopic);
+    var topic, scene;
+    if(sm){
+      topic = afterTopic.slice(0, sm.index).trim();
+      scene = afterTopic.slice(sm.index + sm[0].length).trim();
+    } else {
+      topic = afterTopic.trim();
+      scene = '';
+    }
+    if(!topic) topic = text.trim();
+    return {breakdown: breakdown, topic: topic, scene: scene};
+  }
+
+  function renderDecomposeError(msg){
+    var report = $('decomposeReport');
+    report.innerHTML = '<div class="bad">' + escapeHtml(msg) + '</div>'
+      + '<button type="button" class="chip" id="decomposeRetryBtn" style="margin-top:8px;">🔄 重試</button>';
+    $('decomposeRetryBtn').addEventListener('click', runDecompose);
+  }
+
+  async function runDecompose(){
+    var report = $('decomposeReport');
+    var resultBox = $('decomposeResult');
+    var topic = (state.fields.topic || '').trim();
+    var scene = (state.fields.scene || '').trim();
+    if(!topic){ report.innerHTML = '<div class="bad">請先填寫主題／主體動作再進行拆解</div>'; return; }
+
+    var provider = $('aiProvider').value;
+    var model = $('aiModel').value.trim();
+    var apiKey = $('aiKey').value.trim();
+    if(!apiKey){ report.innerHTML = '<div class="bad">請先在下方「送給 AI 優化」的「API 連線設定」填入 API 金鑰</div>'; return; }
+    if(!model){ report.innerHTML = '<div class="bad">請先在下方「API 連線設定」填入模型名稱</div>'; return; }
+    if(!isLatin1(apiKey) || !isLatin1(model)){ report.innerHTML = '<div class="bad">API 金鑰或模型名稱包含不可用的字元，請確認「API 連線設定」內容</div>'; return; }
+
+    var btn = $('decomposeBtn');
+    btn.disabled = true;
+    resultBox.hidden = true;
+    report.innerHTML = '<div class="ok">正在拆解主題與場景並發展內容…</div>';
+    try{
+      persistApiConfig();
+      var text = await callLLM(provider, model, apiKey, decomposePrompt(topic, scene), function(attempt, status, waitSec){
+        report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
+      });
+      var parsed = parseDecomposeResult(text);
+
+      if(parsed.breakdown){
+        resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
+        resultBox.hidden = false;
+      } else {
+        resultBox.hidden = true;
+      }
+
+      var willChangeTopic = parsed.topic && parsed.topic !== topic;
+      var willChangeScene = parsed.scene && parsed.scene !== scene;
+      if((topic || scene) && (willChangeTopic || willChangeScene) && !confirm('套用整合結果將覆蓋目前的「主題／主體動作」與「場景／地點」內容，確定嗎？')){
+        report.innerHTML = '<div class="warn">已取消套用，整合結果未套用到欄位。</div>';
+      } else {
+        if(parsed.topic){ state.fields.topic = parsed.topic; $('f_topic').value = parsed.topic; }
+        if(parsed.scene){ state.fields.scene = parsed.scene; $('f_scene').value = parsed.scene; }
+        persistState();
+        report.innerHTML = '<div class="ok">已將整合後的內容套用到「主題／主體動作」與「場景／地點」，接著按「🔧 組成提示詞」或「🚀 送給 AI 優化」即可自動帶入秒數／鏡頭運動／風格／光線／情緒／長寬比等設定繼續使用。</div>';
+      }
+    }catch(err){
+      var msg;
+      if(err.name === 'TimeoutError') msg = '呼叫逾時，這個服務商可能暫時回應較慢，可以重試看看';
+      else if(/ISO-8859-1|non.*code point/i.test(err.message || '')) msg = 'API 金鑰或模型名稱包含不可用的字元，請重新確認「API 連線設定」內容';
+      else if(/Failed to fetch|NetworkError/i.test(err.message || '')) msg = '無法連線到服務商，請檢查網路連線或稍後再試';
+      else msg = err.message;
+      renderDecomposeError(msg);
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  $('decomposeBtn').addEventListener('click', runDecompose);
 
   /* ---------- 組成提示詞（純前端字串組裝，不需金鑰、不連網；主題／場景文字本身不會被翻譯） ---------- */
   function showToast(msg){
@@ -1220,10 +1385,13 @@
   }
 
   /* ---------- 送給 AI 優化的請求內容：依目標模型分頁附上不同的輸出格式規則 ---------- */
+  var MULTI_SCENE_PROPOSAL_COUNT = 3;
   function aiPromptForTarget(target, v){
     var tg = TARGETS[target];
     var tzh = tagsZh(v);
     var ratioOpt = optFind(RATIO_OPTIONS, v.ratio);
+    var sceneCount = parseInt(v.sceneCount, 10) || 1;
+    var multiScene = sceneCount > 1;
     var formatRule;
     if(target === 'sora'){
       formatRule = '請用 2～4 句流暢完整的英文敘述句，把主體動作、場景、鏡頭運動、風格、光線與氛圍自然地融入文字中，不要條列標籤，且每一項標籤都要有對應內容、不可省略。'
@@ -1261,19 +1429,45 @@
       lines.push(assembleCoreLines(target, v).join('\n'));
     }
     lines.push('');
-    lines.push('輸出規則：');
-    lines.push('1. 先輸出一段「中文說明」——這段中文的完整度必須跟後面的正式輸出對等，不是一句話摘要：先用 2～3 句話流暢描述主體、動作與場景。' + mandatoryChineseTrailerRule(v, ratioOpt));
-    lines.push('2. 接著另起一行輸出分隔線 "---"；');
-    if(target === 'kling'){
-      lines.push('3. 接著輸出「可靈中文提示詞」區塊：可直接貼給可靈使用的完整中文提示詞。' + formatRule);
-      lines.push('4. 再另起一行輸出分隔線 "---"；');
-      lines.push('5. 最後輸出「English Prompt (optional)」區塊：對應的英文翻譯，供需要英文版本或其他工具使用，同樣不可遺漏任何一項設定。' + mandatoryEnglishTrailerRule(v, ratioOpt));
-      lines.push('請勿輸出除了中文說明、分隔線、可靈中文提示詞、English Prompt 以外的其他內容。');
+    if(!multiScene){
+      lines.push('輸出規則：');
+      lines.push('1. 先輸出一段「中文說明」——這段中文的完整度必須跟後面的正式輸出對等，不是一句話摘要：先用 2～3 句話流暢描述主體、動作與場景。' + mandatoryChineseTrailerRule(v, ratioOpt));
+      lines.push('2. 接著另起一行輸出分隔線 "---"；');
+      if(target === 'kling'){
+        lines.push('3. 接著輸出「可靈中文提示詞」區塊：可直接貼給可靈使用的完整中文提示詞。' + formatRule);
+        lines.push('4. 再另起一行輸出分隔線 "---"；');
+        lines.push('5. 最後輸出「English Prompt (optional)」區塊：對應的英文翻譯，供需要英文版本或其他工具使用，同樣不可遺漏任何一項設定。' + mandatoryEnglishTrailerRule(v, ratioOpt));
+        lines.push('請勿輸出除了中文說明、分隔線、可靈中文提示詞、English Prompt 以外的其他內容。');
+      } else {
+        lines.push('3. 最後輸出「English Prompt」區塊，內容是最終要貼給影片生成模型使用的完整英文提示詞。' + formatRule);
+        lines.push('請勿輸出除了中文說明、分隔線、English Prompt 以外的其他內容。');
+      }
+      lines.push('中文說明與' + (target === 'kling' ? '「可靈中文提示詞」' : 'English Prompt') + '都必須完整涵蓋' + (hasExisting ? '上面列出的每一項鏡頭運動／風格／光線／氛圍標籤，以及時長／長寬比／音效配樂／不想出現的元素' : '草稿裡的每一項設定（主題、場景、鏡頭運動／風格／光線／氛圍標籤、時長、長寬比、音效配樂、不想出現的元素）') + '，不可為了精簡而省略——即使因此需要用比較長的句子逐一帶到每個重點也沒關係，完整度優先於簡潔。');
     } else {
-      lines.push('3. 最後輸出「English Prompt」區塊，內容是最終要貼給影片生成模型使用的完整英文提示詞。' + formatRule);
-      lines.push('請勿輸出除了中文說明、分隔線、English Prompt 以外的其他內容。');
+      // 連續場景模式：不是輸出單一提示詞，而是一次給 3 個創意方案，每個方案各自是一組維持主體／場景／
+      // 風格連貫的連續場景分鏡，方便剪接成一支連續短片。同一方案內每個場景仍要求「中文說明＋正式提示詞」
+      // 兩段式輸出（沿用單一場景模式已驗證過的 formatRule／mandatoryXxxTrailerRule，不重新設計一套規則）。
+      lines.push('這次請一次產生 ' + MULTI_SCENE_PROPOSAL_COUNT + ' 個不同的創意方案（方案一／方案二／方案三），每個方案都是一組由 ' + sceneCount + ' 個連續場景組成的短片分鏡腳本——同一方案內的 ' + sceneCount + ' 個場景，必須維持相同的主體、場景設定、影片風格、光線與情緒氛圍等設定，讓場景與場景之間有連貫性、可以直接剪接銜接成一支連續的短片；每個場景可以有不同的具體動作、鏡頭運動或鏡頭角度，呈現分鏡之間的變化與推進。不同的 ' + MULTI_SCENE_PROPOSAL_COUNT + ' 個方案之間，則可以呈現彼此不同的創意角度、敘事切入點或鏡頭語言，讓使用者有多種選擇可以比較。');
+      lines.push('');
+      lines.push('請依照以下格式輸出，方案與方案之間用 "====" 分隔線隔開，同一方案內每個場景之間用 "----" 分隔線隔開，不要有其他多餘文字或說明：');
+      lines.push('【方案一】一句話說明這個方案的整體創意構想');
+      lines.push('【場景 1／' + sceneCount + '】');
+      lines.push('中文說明：用 2～3 句話流暢描述這個場景的主體、動作與場景，完整度必須跟下面的正式輸出對等，不是一句話摘要。' + mandatoryChineseTrailerRule(v, ratioOpt));
+      if(target === 'kling'){
+        lines.push('可靈中文提示詞：可直接貼給可靈使用的完整中文提示詞。' + formatRule);
+        lines.push('English Prompt (optional)：對應的英文翻譯，供需要英文版本或其他工具使用。' + mandatoryEnglishTrailerRule(v, ratioOpt));
+      } else {
+        lines.push('English Prompt：這個場景最終要貼給影片生成模型使用的完整英文提示詞。' + formatRule);
+      }
+      lines.push('----');
+      lines.push('（場景 2／' + sceneCount + ' 一直到場景 ' + sceneCount + '／' + sceneCount + '，依照跟場景 1 完全相同的格式繼續輸出，每個場景都要包含中文說明與' + (target === 'kling' ? '可靈中文提示詞、English Prompt' : 'English Prompt') + '，且都要維持這個方案的主體、場景與風格連貫，不可省略任何一個場景）');
+      lines.push('====');
+      lines.push('【方案二】格式與方案一完全相同，同樣包含 ' + sceneCount + ' 個場景');
+      lines.push('====');
+      lines.push('【方案三】格式與方案一完全相同，同樣包含 ' + sceneCount + ' 個場景');
+      lines.push('');
+      lines.push('每一個方案、每一個場景的中文說明與' + (target === 'kling' ? '「可靈中文提示詞」' : 'English Prompt') + '都必須完整涵蓋' + (hasExisting ? '上面列出的每一項鏡頭運動／風格／光線／氛圍標籤，以及時長／長寬比／音效配樂／不想出現的元素' : '草稿裡的每一項設定（主題、場景、鏡頭運動／風格／光線／氛圍標籤、時長、長寬比、音效配樂、不想出現的元素）') + '，不可為了精簡而省略。');
     }
-    lines.push('中文說明與' + (target === 'kling' ? '「可靈中文提示詞」' : 'English Prompt') + '都必須完整涵蓋' + (hasExisting ? '上面列出的每一項鏡頭運動／風格／光線／氛圍標籤，以及時長／長寬比／音效配樂／不想出現的元素' : '草稿裡的每一項設定（主題、場景、鏡頭運動／風格／光線／氛圍標籤、時長、長寬比、音效配樂、不想出現的元素）') + '，不可為了精簡而省略——即使因此需要用比較長的句子逐一帶到每個重點也沒關係，完整度優先於簡潔。');
     return lines.join('\n');
   }
 
@@ -1298,7 +1492,9 @@
     persistApiConfig();
     var btn = $('aiGenerateBtn');
     btn.disabled = true;
-    report.innerHTML = '<div class="ok">呼叫 ' + AI_PROVIDERS[provider].label + '（' + escapeHtml(model) + '）中，請稍候…</div>';
+    var sceneCount = parseInt(v.sceneCount, 10) || 1;
+    var multiScene = sceneCount > 1;
+    report.innerHTML = '<div class="ok">呼叫 ' + AI_PROVIDERS[provider].label + '（' + escapeHtml(model) + '）中' + (multiScene ? '，正在產生 ' + MULTI_SCENE_PROPOSAL_COUNT + ' 個方案、每個方案 ' + sceneCount + ' 個連續場景' : '') + '，請稍候…</div>';
     try{
       var text = await callLLM(provider, model, apiKey, promptForAi, function(attempt, status, waitSec){
         report.innerHTML = '<div class="warn">API 回應 ' + status + '（服務商暫時過載／限流），' + waitSec + ' 秒後自動重試（第 ' + attempt + '／2 次）…</div>';
@@ -1306,7 +1502,7 @@
       state.aiOutput[state.activeTarget] = text;
       persistState();
       $('aiOutput').textContent = text;
-      report.innerHTML = '<div class="ok">已產生優化結果，請自行檢查後再貼給影片模型使用。</div>';
+      report.innerHTML = '<div class="ok">已產生優化結果' + (multiScene ? '（' + MULTI_SCENE_PROPOSAL_COUNT + ' 個方案，每個方案 ' + sceneCount + ' 個連續場景）' : '') + '，請自行檢查後再貼給影片模型使用。</div>';
     }catch(err){
       var msg;
       if(err.name === 'TimeoutError') msg = '請求逾時（180秒），請重試或換模型';
