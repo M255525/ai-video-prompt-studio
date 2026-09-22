@@ -297,9 +297,10 @@
         🧩 主題／場景拆解模式（先把畫面拆解成幾個次要主題，分別發展細節內容，再分別整合回「主題」與「場景」兩個欄位）
       </label>
       <div class="decompose-box" id="decomposePanel" hidden>
-        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定，請 AI 依序完成：① 把主題與場景拆解成幾個次要主題 → ② 分別發展每個次要主題更豐富的衍生內容 → ③ 分別整合成更完整的「主題／主體動作」與「場景／地點」文字，並直接套用到上面兩個欄位。套用後，「🔧 組成提示詞」與「🚀 送給 AI 優化」會自動把這兩段更豐富的內容，跟秒數／鏡頭運動／風格／光線／情緒／長寬比／音效配樂／不希望出現的元素等設定組合起來，AI 優化時也會完整保留這些設定，不會漏掉。</p>
+        <p class="field-hint" style="margin:0 0 10px;">會用下方「送給 AI 優化」的 API 連線設定，請 AI 依序完成：① 把主題與場景拆解成幾個次要主題 → ② 分別發展每個次要主題更豐富的衍生內容 → ③ 分別整合成更完整的「主題／主體動作」與「場景／地點」文字，並直接套用到上面兩個欄位（結果 A）。套用後，「🔧 組成提示詞」與「🚀 送給 AI 優化」會自動把這兩段更豐富的內容，跟秒數／鏡頭運動／風格／光線／情緒／長寬比／音效配樂／不希望出現的元素等設定組合起來，AI 優化時也會完整保留這些設定，不會漏掉。套用結果 A 之後會出現「再次拆解」按鈕，可以把結果 A 當成新的輸入，再拆解發展一次得到更細緻的結果 B，並可持續反覆疊代。</p>
         <div class="output-actions">
           <button class="btn ghost" id="decomposeBtn" type="button">🧩 拆解並發展主題／場景</button>
+          <button class="btn ghost" id="decomposeAgainBtn" type="button" hidden>🧩 再次拆解「結果 A」→ 發展出更細緻的結果 B</button>
         </div>
         <div id="decomposeReport" class="ai-report" aria-live="polite"></div>
         <div class="decompose-result" id="decomposeResult" hidden></div>
@@ -920,6 +921,7 @@
     $('f_scenecount').value = state.fields.sceneCount || '1';
     $('f_decompose').checked = !!state.fields.decompose;
     $('decomposePanel').hidden = !state.fields.decompose;
+    resetDecomposeProgress();
   }
 
   function initFieldInputs(){
@@ -963,6 +965,16 @@
      與「🚀 送給 AI 優化」共用的**前置步驟**（不直接產生最終提示詞）：套用後，「組成提示詞」會自動把這兩段更豐富
      的內容跟秒數／鏡頭運動／風格／光線／情緒／長寬比／音效配樂／不希望出現的元素組合起來，「送給 AI 優化」
      再把組合結果整段拿去翻譯潤飾。單一 LLM 呼叫、要求固定格式輸出，前端只負責解析與顯示。 ---------- */
+  var decomposeRound = 0; // 0=尚未拆解過；每次成功套用整合結果 +1，用於報告文字顯示「結果 A／結果 B／…」與控制「再次拆解」按鈕是否顯示
+  var DECOMPOSE_ROUND_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
+  function decomposeRoundLabel(n){ return DECOMPOSE_ROUND_LABELS[n - 1] || ('第 ' + n + ' 輪'); }
+  function resetDecomposeProgress(){
+    decomposeRound = 0;
+    $('decomposeAgainBtn').hidden = true;
+    $('decomposeReport').innerHTML = '';
+    $('decomposeResult').hidden = true;
+    $('decomposeResult').innerHTML = '';
+  }
   var DECOMPOSE_BREAKDOWN_MARKER = '【次要主題拆解與發展】';
   var DECOMPOSE_TOPIC_MARKER = '【整合後的主題／主體動作】';
   var DECOMPOSE_SCENE_MARKER = '【整合後的場景／地點】';
@@ -1038,9 +1050,12 @@
     if(!isLatin1(apiKey) || !isLatin1(model)){ report.innerHTML = '<div class="bad">API 金鑰或模型名稱包含不可用的字元，請確認「API 連線設定」內容</div>'; return; }
 
     var btn = $('decomposeBtn');
+    var againBtn = $('decomposeAgainBtn');
+    var nextRoundLabel = decomposeRoundLabel(decomposeRound + 1);
     btn.disabled = true;
+    againBtn.disabled = true;
     resultBox.hidden = true;
-    report.innerHTML = '<div class="ok">正在拆解主題與場景並發展內容…</div>';
+    report.innerHTML = '<div class="ok">正在以目前內容為基礎拆解並發展出結果 ' + nextRoundLabel + '…</div>';
     try{
       persistApiConfig();
       var text = await callLLM(provider, model, apiKey, decomposePrompt(topic, scene), function(attempt, status, waitSec){
@@ -1049,7 +1064,7 @@
       var parsed = parseDecomposeResult(text);
 
       if(parsed.breakdown){
-        resultBox.innerHTML = '<strong>次要主題拆解與發展</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
+        resultBox.innerHTML = '<strong>次要主題拆解與發展（產生結果 ' + nextRoundLabel + ' 的過程）</strong><br>' + escapeHtml(parsed.breakdown).replace(/\n/g, '<br>');
         resultBox.hidden = false;
       } else {
         resultBox.hidden = true;
@@ -1063,7 +1078,10 @@
         if(parsed.topic){ state.fields.topic = parsed.topic; $('f_topic').value = parsed.topic; }
         if(parsed.scene){ state.fields.scene = parsed.scene; $('f_scene').value = parsed.scene; }
         persistState();
-        report.innerHTML = '<div class="ok">已將整合後的內容套用到「主題／主體動作」與「場景／地點」，接著按「🔧 組成提示詞」或「🚀 送給 AI 優化」即可自動帶入秒數／鏡頭運動／風格／光線／情緒／長寬比等設定繼續使用。</div>';
+        decomposeRound++;
+        var appliedLabel = decomposeRoundLabel(decomposeRound);
+        againBtn.hidden = false;
+        report.innerHTML = '<div class="ok">已將整合後的「結果 ' + appliedLabel + '」套用到「主題／主體動作」與「場景／地點」，接著按「🔧 組成提示詞」或「🚀 送給 AI 優化」即可自動帶入秒數／鏡頭運動／風格／光線／情緒／長寬比等設定繼續使用。' + (decomposeRound === 1 ? '如果想要更細緻的版本，也可以按「再次拆解」，以結果 A 為基礎再發展一次得到結果 B。' : '可以繼續按「再次拆解」持續疊代發展。') + '</div>';
       }
     }catch(err){
       var msg;
@@ -1074,10 +1092,12 @@
       renderDecomposeError(msg);
     }finally{
       btn.disabled = false;
+      againBtn.disabled = false;
     }
   }
 
   $('decomposeBtn').addEventListener('click', runDecompose);
+  $('decomposeAgainBtn').addEventListener('click', runDecompose);
 
   /* ---------- 組成提示詞（純前端字串組裝，不需金鑰、不連網；主題／場景文字本身不會被翻譯） ---------- */
   function showToast(msg){
